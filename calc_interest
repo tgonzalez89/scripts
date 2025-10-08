@@ -1,0 +1,73 @@
+from datetime import datetime
+
+
+class Balance:
+    def __init__(self, amount: float, datetime_: datetime) -> None:
+        self.amount = amount
+        self.datetime = datetime_
+
+    def __str__(self):
+        return f"amount={self.amount}, datetime={self.datetime.isoformat()}"
+
+    def __repr__(self):
+        return str(self)
+
+
+class Account:
+    def __init__(self, initial_balance: float = 0, creation_datetime: datetime | None = None) -> None:
+        if creation_datetime is None:
+            creation_datetime = datetime.now()
+        self.balance_history = [Balance(initial_balance, creation_datetime)]
+
+    @property
+    def balance(self) -> float:
+        return self.balance_history[-1].amount
+
+    def add(self, amount: float, datetime_: datetime | None = None) -> None:
+        if self.balance_history[-1].amount + amount < 0:
+            raise RuntimeError("Balance too low.")
+        if datetime_ is None:
+            datetime_ = datetime.now()
+        if datetime_ < self.balance_history[-1].datetime:
+            raise ValueError("Date must be after last balance date.")
+        new_balance = self.balance_history[-1].amount + amount
+        self.balance_history.append(Balance(new_balance, datetime_))
+
+    def calc_interest(self, annual_interest: float, start_date: datetime, end_date: datetime) -> float:
+        if start_date >= end_date:
+            raise ValueError("Start date must be before end date.")
+
+        start_balance = Balance(0, start_date)
+        relevant_balances: list[Balance] = []
+        for b in self.balance_history:
+            if b.datetime <= start_date:
+                start_balance.amount = b.amount
+            elif start_date < b.datetime < end_date:
+                relevant_balances.append(b)
+            else:
+                break
+        relevant_balances.insert(0, start_balance)
+        end_balance = Balance(relevant_balances[-1].amount, end_date)
+        relevant_balances.append(end_balance)
+
+        total_weighted_balance = 0.0
+        for i in range(len(relevant_balances) - 1):
+            current = relevant_balances[i]
+            next_ = relevant_balances[i + 1]
+            duration = (next_.datetime - current.datetime).total_seconds()
+            total_weighted_balance += current.amount * duration
+
+        total_seconds = (end_date - start_date).total_seconds()
+        average_balance = total_weighted_balance / total_seconds
+        days = (end_date - start_date).total_seconds() / (24 * 3600)
+        interest = average_balance * annual_interest * days / (100 * 365)
+
+        return interest
+
+
+if __name__ == "__main__":
+    ac = Account(100, datetime(2025, 1, 1))
+    ac.add(1000000, datetime(2025, 12, 15))
+    ac.add(-1000000, datetime(2025, 12, 16))
+    interest = ac.calc_interest(1, datetime(2025, 1, 1), datetime(2026, 1, 1))
+    print(interest)
